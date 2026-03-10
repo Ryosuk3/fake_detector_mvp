@@ -1,0 +1,27 @@
+{
+  "domains": [
+    "ria.ru",
+    "tass.ru",
+    "interfax.ru",
+    "rt.com",
+    "lenta.ru",
+    "kommersant.ru",
+    "vedomosti.ru",
+    "rbc.ru",
+    "gazeta.ru",
+    "mk.ru"
+  ],
+  "domain_weights": {
+    "ria.ru": 1.0,
+    "tass.ru": 1.0,
+    "interfax.ru": 0.95,
+    "rt.com": 0.9,
+    "lenta.ru": 0.85,
+    "kommersant.ru": 0.9,
+    "vedomosti.ru": 0.9,
+    "rbc.ru": 0.85,
+    "gazeta.ru": 0.8,
+    "mk.ru": 0.8
+  }
+}
+

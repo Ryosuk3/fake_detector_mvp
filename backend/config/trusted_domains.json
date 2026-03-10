@@ -1,0 +1,13 @@
+{
+  "domains": [
+    "ria.ru",
+    "tass.ru",
+    "vedomosti.ru"
+  ],
+  "domain_weights": {
+    "ria.ru": 1.0,
+    "tass.ru": 1.0,
+    "vedomosti.ru": 0.95
+  }
+}
+
