@@ -2,9 +2,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, JSON
 from datetime import datetime
+import asyncio
 import os
 
-# Используем asyncpg для асинхронных операций
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql+asyncpg://postgres:postgres@postgres:5432/fake_detector"
@@ -52,6 +52,24 @@ async def get_db():
 
 async def init_db():
     """Инициализация БД - создание таблиц"""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    retries = int(os.getenv("DB_INIT_RETRIES", "12"))
+    delay = float(os.getenv("DB_INIT_RETRY_DELAY_SEC", "2"))
+    last_error = None
 
+    for attempt in range(1, retries + 1):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt >= retries:
+                break
+            print(
+                f"Database is not ready yet, retrying init_db "
+                f"({attempt}/{retries}): {exc}",
+                flush=True,
+            )
+            await asyncio.sleep(delay)
+
+    raise last_error

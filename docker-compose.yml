@@ -1,60 +1,69 @@
-# version устарел в новых версиях docker-compose
+﻿name: rubert-nli-isolated
 
 services:
-  # PostgreSQL для хранения метаданных
   postgres:
     image: postgres:15-alpine
-    container_name: fake_detector_postgres
+    container_name: rubert_iso_postgres
     environment:
       POSTGRES_DB: fake_detector
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - rubert_iso_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Qdrant для векторного поиска
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: rubert_iso_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - rubert_iso_pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: fake_detector_qdrant
+    container_name: rubert_iso_qdrant
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "6337:6333"
+      - "6338:6334"
     volumes:
-      - qdrant_data:/qdrant/storage
-    # Healthcheck убран, так как в образе нет wget/curl/python
-    # Qdrant запускается быстро и работает стабильно
+      - rubert_iso_qdrant_data:/qdrant/storage
 
-  # Redis для очередей задач
   redis:
     image: redis:7-alpine
-    container_name: fake_detector_redis
+    container_name: rubert_iso_redis
     ports:
-      - "6379:6379"
+      - "6381:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # MinIO для хранения объектов
   minio:
     image: minio/minio:latest
-    container_name: fake_detector_minio
+    container_name: rubert_iso_minio
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9004:9000"
+      - "9005:9001"
     volumes:
-      - minio_data:/data
+      - rubert_iso_minio_data:/data
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
@@ -62,14 +71,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend API
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: fake_detector_backend
+    container_name: rubert_iso_backend
     ports:
-      - "8000:8000"
+      - "8200:8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fake_detector
       - QDRANT_URL=http://qdrant:6333
@@ -80,43 +88,92 @@ services:
       - NLP_SERVICE_URL=http://nlp_service:8001
       - SEARCH_SERVICE_URL=http://search_service:8002
       - VERIFIER_SERVICE_URL=http://verifier_service:8003
+      - CORS_ORIGINS=http://localhost:3200,http://frontend:3000
+      - STATUS_REFUTED_MIN_CONTRADICT_RATIO=0.6
+      - STATUS_REFUTED_MIN_CONTRADICT_CLAIMS=2
+      - STATUS_REFUTED_MIN_UNIQUE_DOMAINS=2
+      - STATUS_CONFIRMED_MIN_ENTAIL_RATIO=0.5
+      - STATUS_PARTIAL_MIN_ENTAIL_RATIO=0.2
+      - DB_INIT_RETRIES=12
+      - DB_INIT_RETRY_DELAY_SEC=2
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      nlp_service:
+        condition: service_healthy
+      search_service:
+        condition: service_healthy
+      verifier_service:
+        condition: service_healthy
     volumes:
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-  # NLP Service (claim extraction, NER)
   nlp_service:
     build:
       context: ./services/nlp_service
       dockerfile: Dockerfile
-    container_name: fake_detector_nlp
+    container_name: rubert_iso_nlp
     ports:
-      - "8001:8001"
+      - "8201:8001"
     environment:
       - MODEL_CACHE_DIR=/app/models
+      - MAX_CLAIMS=12
+      - MIN_CLAIM_CHARS=25
+      - MAX_CLAIM_CHARS=280
+      - MIN_CLAIM_TOKENS=6
+      - MIN_FACTUAL_SCORE=0.35
+      - REQUIRE_FACTUAL_VERB=true
+      - STRICT_ATTRIBUTION_FILTER=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
     volumes:
       - ./services/nlp_service:/app
-      - nlp_models:/app/models
+      - rubert_iso_nlp_models:/app/models
     command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
-  # Search Service (web search, parsing)
   search_service:
     build:
       context: ./services/search_service
       dockerfile: Dockerfile
-    container_name: fake_detector_search
+    container_name: rubert_iso_search
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     ports:
-      - "8002:8002"
+      - "8202:8002"
     environment:
+      - HF_HUB_DISABLE_XET=1
       - QDRANT_URL=http://qdrant:6333
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
+      - TORCH_DEVICE=auto
+      - EMBEDDING_BATCH_SIZE=32
+      - SEARCH_SCORE_THRESHOLD=0.35
+      - SEARCH_PROVIDER=searxng
+      - SEARXNG_TIMEOUT_SEC=10
+      - WEB_RESULTS_PER_QUERY=6
+      - MAX_WEB_URLS=50
+      - INITIAL_SEARCH_LIMIT=40
+      - RESULT_LIMIT=20
+      - QUERY_VARIANTS_PER_CLAIM=2
+      - CHUNK_TARGET_WORDS=140
+      - CHUNK_OVERLAP_SENTENCES=1
+      - RECENT_DAYS_BOOST=30
+      - SEARCH_DEBUG=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
     depends_on:
       qdrant:
         condition: service_started
@@ -124,37 +181,67 @@ services:
         condition: service_healthy
     volumes:
       - ./services/search_service:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+      - rubert_iso_search_hf_cache:/root/.cache/huggingface
+      - rubert_iso_search_torch_cache:/root/.cache/torch
+    command: uvicorn main:app --host 0.0.0.0 --port 8002
 
-  # Verifier Service (NLI/Entailment)
   verifier_service:
     build:
       context: ./services/verifier_service
       dockerfile: Dockerfile
-    container_name: fake_detector_verifier
+    container_name: rubert_iso_verifier
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     ports:
-      - "8003:8003"
+      - "8203:8003"
     environment:
+      - HF_HUB_DISABLE_XET=1
       - QDRANT_URL=http://qdrant:6333
       - MODEL_CACHE_DIR=/app/models
+      - TORCH_DEVICE=auto
+      - PRELOAD_MODELS=false
+      - EMBEDDING_BATCH_SIZE=32
+      - NLI_BATCH_SIZE=8
+      - NLI_MODEL_NAME=/app/finetuned/rubert_nli_refreshed
+      - NLI_MAX_LENGTH=512
+      - MAX_ARTICLES_TO_VERIFY=8
+      - MAX_CHUNKS_PER_ARTICLE=12
+      - EVIDENCE_SIMILARITY_MIN_SCORE=0.5
+      - EVIDENCE_RELEVANCE_MIN_SCORE=0.55
+      - CLAIM_LABEL_MIN_CONFIDENCE=0.65
+      - CONTRADICTION_MIN_MARGIN=0.08
+      - STATUS_REFUTED_MIN_CONTRADICT_RATIO=0.6
+      - STATUS_REFUTED_MIN_CONTRADICT_CLAIMS=2
+      - STATUS_REFUTED_MIN_UNIQUE_DOMAINS=2
+      - STATUS_CONFIRMED_MIN_ENTAIL_RATIO=0.5
+      - STATUS_PARTIAL_MIN_ENTAIL_RATIO=0.0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 180s
     depends_on:
       qdrant:
         condition: service_started
     volumes:
       - ./services/verifier_service:/app
-      - verifier_models:/app/models
-    command: uvicorn main:app --host 0.0.0.0 --port 8003 --reload
+      - ./models/rubert_nli_qwen35_20260508_lr5e6_e4/model:/app/finetuned/rubert_nli_refreshed:ro
+      - rubert_iso_verifier_models:/app/models
+      - rubert_iso_verifier_hf_cache:/root/.cache/huggingface
+      - rubert_iso_verifier_torch_cache:/root/.cache/torch
+    command: uvicorn main:app --host 0.0.0.0 --port 8003
 
-  # Frontend
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: fake_detector_frontend
+    container_name: rubert_iso_frontend
     ports:
-      - "3000:3000"
+      - "3200:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_API_URL=http://localhost:8200
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -162,9 +249,14 @@ services:
       - backend
 
 volumes:
-  postgres_data:
-  qdrant_data:
-  minio_data:
-  nlp_models:
-  verifier_models:
+  rubert_iso_postgres_data:
+  rubert_iso_pgadmin_data:
+  rubert_iso_qdrant_data:
+  rubert_iso_minio_data:
+  rubert_iso_nlp_models:
+  rubert_iso_verifier_models:
+  rubert_iso_search_hf_cache:
+  rubert_iso_verifier_hf_cache:
+  rubert_iso_search_torch_cache:
+  rubert_iso_verifier_torch_cache:
 

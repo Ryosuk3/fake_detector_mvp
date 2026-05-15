@@ -1,13 +1,16 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 import httpx
 import os
 from datetime import datetime
 from enum import Enum
+from urllib.parse import urlparse
+from sqlalchemy import select
 
-from database import init_db
+from database import AsyncSessionLocal, VerificationRequest as VerificationRequestModel, init_db
 
 app = FastAPI(
     title="Fake Detector API",
@@ -15,10 +18,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://frontend:3000").split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://frontend:3000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -33,6 +40,11 @@ async def startup_event():
 NLP_SERVICE_URL = os.getenv("NLP_SERVICE_URL", "http://nlp_service:8001")
 SEARCH_SERVICE_URL = os.getenv("SEARCH_SERVICE_URL", "http://search_service:8002")
 VERIFIER_SERVICE_URL = os.getenv("VERIFIER_SERVICE_URL", "http://verifier_service:8003")
+STATUS_REFUTED_MIN_CONTRADICT_RATIO = float(os.getenv("STATUS_REFUTED_MIN_CONTRADICT_RATIO", "0.6"))
+STATUS_REFUTED_MIN_CONTRADICT_CLAIMS = int(os.getenv("STATUS_REFUTED_MIN_CONTRADICT_CLAIMS", "2"))
+STATUS_REFUTED_MIN_UNIQUE_DOMAINS = int(os.getenv("STATUS_REFUTED_MIN_UNIQUE_DOMAINS", "2"))
+STATUS_CONFIRMED_MIN_ENTAIL_RATIO = float(os.getenv("STATUS_CONFIRMED_MIN_ENTAIL_RATIO", "0.6"))
+STATUS_PARTIAL_MIN_ENTAIL_RATIO = float(os.getenv("STATUS_PARTIAL_MIN_ENTAIL_RATIO", "0.2"))
 
 
 class VerificationStatus(str, Enum):
@@ -45,7 +57,7 @@ class VerificationStatus(str, Enum):
 class ClaimEvidence(BaseModel):
     url: str
     title: str
-    date: str
+    date: Optional[str] = None
     snippet: str
 
 
@@ -58,7 +70,7 @@ class ClaimResult(BaseModel):
 class SourceInfo(BaseModel):
     url: str
     domain: str
-    date: str
+    date: Optional[str] = None
     trust_level: float
 
 
@@ -75,6 +87,15 @@ class VerifyResponse(BaseModel):
     request_id: Optional[str] = None
 
 
+class HistoryItem(BaseModel):
+    id: int
+    text_preview: str
+    status: Optional[str] = None
+    confidence: Optional[float] = None
+    created_at: datetime
+    result: Optional[Dict[str, Any]] = None
+
+
 @app.get("/")
 async def root():
     return {"message": "Fake Detector API", "version": "1.0.0"}
@@ -82,14 +103,43 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "status_refuted_min_contradict_ratio": STATUS_REFUTED_MIN_CONTRADICT_RATIO,
+        "status_refuted_min_contradict_claims": STATUS_REFUTED_MIN_CONTRADICT_CLAIMS,
+        "status_refuted_min_unique_domains": STATUS_REFUTED_MIN_UNIQUE_DOMAINS,
+        "status_confirmed_min_entail_ratio": STATUS_CONFIRMED_MIN_ENTAIL_RATIO,
+        "status_partial_min_entail_ratio": STATUS_PARTIAL_MIN_ENTAIL_RATIO,
+    }
+
+
+@app.get("/history", response_model=List[HistoryItem])
+async def get_history(limit: int = 20):
+    """Последние сохраненные проверки с результатами."""
+    limit = max(1, min(limit, 100))
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(VerificationRequestModel)
+            .order_by(VerificationRequestModel.created_at.desc())
+            .limit(limit)
+        )
+        rows = result.scalars().all()
+
+    return [
+        HistoryItem(
+            id=row.id,
+            text_preview=(row.text[:220] + "...") if len(row.text) > 220 else row.text,
+            status=row.status,
+            confidence=row.confidence,
+            created_at=row.created_at,
+            result=row.result,
+        )
+        for row in rows
+    ]
 
 
 @app.post("/verify", response_model=VerifyResponse)
-async def verify_text(
-    request: VerifyRequest,
-    background_tasks: BackgroundTasks
-):
+async def verify_text(request: VerifyRequest):
     """
     Проверка достоверности текста новости.
     
@@ -117,11 +167,13 @@ async def verify_text(
         entities = nlp_data.get("entities", [])
         
         if not claims:
-            return VerifyResponse(
+            response = VerifyResponse(
                 status=VerificationStatus.INSUFFICIENT_DATA,
                 confidence=0.0,
                 warnings=["Не удалось извлечь проверяемые утверждения из текста"]
             )
+            await save_verification_result(request.text, response)
+            return response
         
         # Преобразуем в словари для сериализации
         claims_dict = [c if isinstance(c, dict) else c.dict() for c in claims]
@@ -143,11 +195,13 @@ async def verify_text(
         found_articles = search_data.get("articles", [])
         
         if not found_articles:
-            return VerifyResponse(
+            response = VerifyResponse(
                 status=VerificationStatus.INSUFFICIENT_DATA,
                 confidence=0.0,
                 warnings=["Не найдено релевантных статей в доверенных источниках"]
             )
+            await save_verification_result(request.text, response)
+            return response
         
         # Преобразуем articles в словари
         articles_dict = [a if isinstance(a, dict) else a.dict() for a in found_articles]
@@ -186,23 +240,15 @@ async def verify_text(
         # Определение общего статуса
         status = _determine_status(claim_results, verifier_data.get("confidence", 0.0))
         
-        # Сохранение результата в БД (асинхронно)
-        background_tasks.add_task(
-            save_verification_result,
-            request.text,
-            status,
-            verifier_data.get("confidence", 0.0),
-            claim_results,
-            sources
-        )
-        
-        return VerifyResponse(
+        response = VerifyResponse(
             status=status,
             confidence=verifier_data.get("confidence", 0.0),
             claims=claim_results,
             sources=sources,
             warnings=verifier_data.get("warnings", [])
         )
+        await save_verification_result(request.text, response)
+        return response
         
     except httpx.TimeoutException as e:
         import traceback
@@ -221,29 +267,57 @@ async def verify_text(
         raise HTTPException(status_code=500, detail=error_detail)
 
 
+def _domains_from_evidence(evidence: List[ClaimEvidence]) -> Set[str]:
+    domains: Set[str] = set()
+    for item in evidence:
+        url = (item.url or "").strip()
+        if not url:
+            continue
+        try:
+            domain = urlparse(url).netloc.replace("www.", "").lower()
+        except Exception:
+            domain = ""
+        if domain:
+            domains.add(domain)
+    return domains
+
+
+def _should_mark_refuted(claim_results: List[ClaimResult]) -> bool:
+    if not claim_results:
+        return False
+    contradict_claims = [claim for claim in claim_results if claim.label == "CONTRADICTS"]
+    contradict_count = len(contradict_claims)
+    contradict_ratio = contradict_count / len(claim_results)
+    if contradict_count < STATUS_REFUTED_MIN_CONTRADICT_CLAIMS:
+        return False
+    if contradict_ratio <= STATUS_REFUTED_MIN_CONTRADICT_RATIO:
+        return False
+    contradict_domains: Set[str] = set()
+    for claim in contradict_claims:
+        contradict_domains.update(_domains_from_evidence(claim.evidence))
+    return len(contradict_domains) >= STATUS_REFUTED_MIN_UNIQUE_DOMAINS
+
+
 def _determine_status(claim_results: List[ClaimResult], confidence: float) -> VerificationStatus:
     """Определение общего статуса на основе результатов по утверждениям"""
     if not claim_results:
         return VerificationStatus.INSUFFICIENT_DATA
     
     entails_count = sum(1 for c in claim_results if c.label == "ENTAILS")
-    contradicts_count = sum(1 for c in claim_results if c.label == "CONTRADICTS")
-    neutral_count = sum(1 for c in claim_results if c.label == "NEUTRAL")
     total = len(claim_results)
     
     entails_ratio = entails_count / total
-    contradicts_ratio = contradicts_count / total
     
     # Если есть противоречия - статус REFUTED
-    if contradicts_ratio > 0.3:
+    if _should_mark_refuted(claim_results):
         return VerificationStatus.REFUTED
     
     # Если большинство подтверждено
-    if entails_ratio >= 0.6:
+    if entails_ratio >= STATUS_CONFIRMED_MIN_ENTAIL_RATIO:
         return VerificationStatus.CONFIRMED
     
     # Если часть подтверждена
-    if entails_ratio > 0.2:
+    if entails_ratio > STATUS_PARTIAL_MIN_ENTAIL_RATIO:
         return VerificationStatus.PARTIALLY_CONFIRMED
     
     # Недостаточно данных
@@ -252,17 +326,25 @@ def _determine_status(claim_results: List[ClaimResult], confidence: float) -> Ve
 
 async def save_verification_result(
     text: str,
-    status: VerificationStatus,
-    confidence: float,
-    claims: List[ClaimResult],
-    sources: List[SourceInfo]
+    response: VerifyResponse
 ):
     """Сохранение результата проверки в БД"""
-    # TODO: Реализовать сохранение в PostgreSQL
-    pass
+    async with AsyncSessionLocal() as session:
+        record = VerificationRequestModel(
+            text=text,
+            status=response.status.value if isinstance(response.status, VerificationStatus) else str(response.status),
+            confidence=response.confidence,
+            result=jsonable_encoder(response),
+        )
+        session.add(record)
+        await session.commit()
+        await session.refresh(record)
+        response.request_id = str(record.id)
+        record.result = jsonable_encoder(response)
+        await session.commit()
+
 
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-

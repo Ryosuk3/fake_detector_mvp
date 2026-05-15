@@ -1,8 +1,9 @@
 .result-display {
-  background: white;
-  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 24px;
   padding: 2rem;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
   margin-top: 2rem;
 }
 
@@ -12,7 +13,7 @@
   align-items: center;
   margin-bottom: 1.5rem;
   padding-bottom: 1.5rem;
-  border-bottom: 2px solid #e0e0e0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .result-status {
@@ -20,13 +21,20 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 800;
   font-size: 1.1rem;
 }
 
 .status-icon {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
   font-size: 1.5rem;
+  height: 1.75rem;
+  justify-content: center;
+  width: 1.75rem;
 }
 
 .result-confidence {
@@ -37,27 +45,28 @@
 
 .confidence-label {
   font-size: 0.9rem;
-  color: #666;
+  color: #94a3b8;
   margin-bottom: 0.25rem;
 }
 
 .confidence-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #667eea;
+  color: #67e8f9;
 }
 
 .warnings {
-  background: #fff3cd;
-  border-left: 4px solid #ffc107;
+  background: rgba(120, 53, 15, 0.42);
+  border: 1px solid rgba(251, 191, 36, 0.24);
+  border-left: 4px solid #f59e0b;
   padding: 1rem;
-  border-radius: 4px;
+  border-radius: 14px;
   margin-bottom: 1.5rem;
 }
 
 .warning-item {
   margin: 0.5rem 0;
-  color: #856404;
+  color: #fde68a;
 }
 
 .claims-section,
@@ -67,17 +76,18 @@
 
 .claims-section h3,
 .sources-section h3 {
-  color: #333;
+  color: #f8fafc;
   margin-bottom: 1rem;
   font-size: 1.3rem;
 }
 
 .claim-item {
-  background: #f8f9fa;
-  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 18px;
   padding: 1.5rem;
   margin-bottom: 1rem;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid #22d3ee;
 }
 
 .claim-header {
@@ -92,54 +102,54 @@
   flex: 1;
   font-size: 1.05rem;
   line-height: 1.6;
-  color: #333;
+  color: #e2e8f0;
 }
 
 .claim-label {
   padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-weight: 600;
+  border-radius: 999px;
+  font-weight: 800;
   font-size: 0.9rem;
   white-space: nowrap;
 }
 
 .claim-entails {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: rgba(16, 185, 129, 0.14);
+  color: #86efac;
 }
 
 .claim-contradicts {
-  background: #ffebee;
-  color: #c62828;
+  background: rgba(239, 68, 68, 0.14);
+  color: #fca5a5;
 }
 
 .claim-neutral {
-  background: #f5f5f5;
-  color: #616161;
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
 }
 
 .claim-evidence {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .claim-evidence strong {
   display: block;
   margin-bottom: 0.75rem;
-  color: #555;
+  color: #cbd5e1;
 }
 
 .evidence-item {
-  background: white;
+  background: rgba(2, 6, 23, 0.48);
   padding: 1rem;
-  border-radius: 6px;
+  border-radius: 14px;
   margin-bottom: 0.75rem;
-  border: 1px solid #e0e0e0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .evidence-link {
-  color: #667eea;
+  color: #67e8f9;
   text-decoration: none;
   font-weight: 600;
   display: block;
@@ -153,13 +163,13 @@
 .evidence-date {
   display: inline-block;
   margin-left: 1rem;
-  color: #999;
+  color: #94a3b8;
   font-size: 0.9rem;
 }
 
 .evidence-snippet {
   margin-top: 0.5rem;
-  color: #666;
+  color: #cbd5e1;
   font-style: italic;
   line-height: 1.5;
 }
@@ -171,14 +181,14 @@
 }
 
 .source-item {
-  background: #f8f9fa;
+  background: rgba(30, 41, 59, 0.72);
   padding: 1rem;
-  border-radius: 6px;
-  border: 1px solid #e0e0e0;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .source-link {
-  color: #667eea;
+  color: #67e8f9;
   text-decoration: none;
   font-weight: 600;
   display: block;
@@ -191,15 +201,39 @@
 
 .source-date {
   display: block;
-  color: #999;
+  color: #94a3b8;
   font-size: 0.9rem;
   margin-bottom: 0.25rem;
 }
 
 .source-trust {
   display: block;
-  color: #666;
+  color: #cbd5e1;
   font-size: 0.85rem;
+}
+
+.status-confirmed {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.34);
+  color: #86efac;
+}
+
+.status-refuted {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.34);
+  color: #fca5a5;
+}
+
+.status-partially_confirmed {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.34);
+  color: #fcd34d;
+}
+
+.status-insufficient_data {
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: #cbd5e1;
 }
 
 @media (max-width: 768px) {

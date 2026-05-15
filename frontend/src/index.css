@@ -10,7 +10,11 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background:
+    radial-gradient(circle at top left, rgba(20, 184, 166, 0.22), transparent 34rem),
+    radial-gradient(circle at top right, rgba(79, 70, 229, 0.24), transparent 32rem),
+    linear-gradient(135deg, #020617 0%, #0f172a 52%, #111827 100%);
+  color: #e5edf8;
   min-height: 100vh;
 }
 

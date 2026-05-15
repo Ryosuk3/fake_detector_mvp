@@ -1,0 +1,12 @@
+﻿services:
+  search_service:
+    environment:
+      - TORCH_DEVICE=cpu
+      - EMBEDDING_BATCH_SIZE=32
+      - INITIAL_SEARCH_LIMIT=60
+
+  verifier_service:
+    environment:
+      - TORCH_DEVICE=cpu
+      - EMBEDDING_BATCH_SIZE=32
+      - NLI_BATCH_SIZE=8

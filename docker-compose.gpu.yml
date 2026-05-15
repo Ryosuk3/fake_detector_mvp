@@ -1,0 +1,20 @@
+services:
+  search_service:
+    build:
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu121
+    gpus: all
+    environment:
+      - TORCH_DEVICE=cuda
+      - EMBEDDING_BATCH_SIZE=64
+      - INITIAL_SEARCH_LIMIT=60
+
+  verifier_service:
+    build:
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu121
+    gpus: all
+    environment:
+      - TORCH_DEVICE=cuda
+      - EMBEDDING_BATCH_SIZE=64
+      - NLI_BATCH_SIZE=16

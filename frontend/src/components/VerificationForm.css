@@ -1,8 +1,9 @@
 .verification-form-container {
-  background: white;
-  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 24px;
   padding: 2rem;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
   margin-bottom: 2rem;
 }
 
@@ -13,30 +14,39 @@
 
 .form-label {
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 1rem;
-  color: #333;
+  color: #f8fafc;
 }
 
 .text-input {
+  background: rgba(2, 6, 23, 0.58);
+  color: #e2e8f0;
   width: 100%;
   padding: 1rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 18px;
   font-size: 1rem;
   font-family: inherit;
+  line-height: 1.6;
   resize: vertical;
   min-height: 200px;
-  transition: border-color 0.3s;
+  transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
+}
+
+.text-input::placeholder {
+  color: #64748b;
 }
 
 .text-input:focus {
   outline: none;
-  border-color: #667eea;
+  background: rgba(2, 6, 23, 0.78);
+  border-color: rgba(34, 211, 238, 0.78);
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.1);
 }
 
 .text-input:disabled {
-  background: #f5f5f5;
+  background: rgba(15, 23, 42, 0.8);
   cursor: not-allowed;
 }
 
@@ -48,30 +58,30 @@
 }
 
 .char-count {
-  color: #666;
+  color: #94a3b8;
   font-size: 0.9rem;
 }
 
 .char-warning {
-  color: #ff6b6b;
+  color: #fb7185;
 }
 
 .verify-button {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, #22d3ee 0%, #14b8a6 52%, #6366f1 100%);
+  color: #020617;
   border: none;
   padding: 0.75rem 2rem;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 800;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 14px 30px rgba(20, 184, 166, 0.22);
 }
 
 .verify-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 18px 40px rgba(34, 211, 238, 0.28);
 }
 
 .verify-button:active:not(:disabled) {

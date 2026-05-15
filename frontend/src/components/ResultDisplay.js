@@ -1,32 +1,45 @@
 import React from 'react';
 import './ResultDisplay.css';
 
+const translateWarning = (warning) => {
+  if (!warning) {
+    return '';
+  }
+
+  const noEvidenceMatch = String(warning).match(
+    /^No relevant evidence found for (\d+) of (\d+) claims$/i
+  );
+
+  if (noEvidenceMatch) {
+    const [, notFoundCount, totalCount] = noEvidenceMatch;
+    return `Для ${notFoundCount} из ${totalCount} утверждений не найдено релевантных доказательных фрагментов`;
+  }
+
+  if (warning === 'Contradicting snippets exist, but not enough for global refutation') {
+    return 'Найдены противоречащие фрагменты, однако их недостаточно для общего вывода об опровержении';
+  }
+
+  return warning;
+};
+
 function ResultDisplay({ result }) {
   const getStatusInfo = (status) => {
     const statusMap = {
       CONFIRMED: {
         label: 'Подтверждено',
-        icon: '✅',
-        color: '#4caf50',
-        bgColor: '#e8f5e9'
+        icon: '✓',
       },
       REFUTED: {
         label: 'Опровергнуто',
-        icon: '❌',
-        color: '#f44336',
-        bgColor: '#ffebee'
+        icon: '!',
       },
       PARTIALLY_CONFIRMED: {
         label: 'Частично подтверждено',
-        icon: '⚠️',
-        color: '#ff9800',
-        bgColor: '#fff3e0'
+        icon: '~',
       },
       INSUFFICIENT_DATA: {
         label: 'Недостаточно данных',
-        icon: '❓',
-        color: '#9e9e9e',
-        bgColor: '#f5f5f5'
+        icon: '?',
       }
     };
     return statusMap[status] || statusMap.INSUFFICIENT_DATA;
@@ -38,12 +51,9 @@ function ResultDisplay({ result }) {
   return (
     <div className="result-display">
       <div className="result-header">
-        <div 
-className="result-status" style={{ backgroundColor: statusInfo.bgColor }}>
+        <div className={`result-status status-${result.status.toLowerCase()}`}>
           <span className="status-icon">{statusInfo.icon}</span>
-          <span className="status-label" style={{ color: statusInfo.color }}>
-            {statusInfo.label}
-          </span>
+          <span className="status-label">{statusInfo.label}</span>
         </div>
         <div className="result-confidence">
           <span className="confidence-label">Уверенность:</span>
@@ -55,7 +65,7 @@ className="result-status" style={{ backgroundColor: statusInfo.bgColor }}>
         <div className="warnings">
           {result.warnings.map((warning, idx) => (
             <div key={idx} className="warning-item">
-              ⚠️ {warning}
+              {translateWarning(warning)}
             </div>
           ))}
         </div>
@@ -69,9 +79,9 @@ className="result-status" style={{ backgroundColor: statusInfo.bgColor }}>
               <div className="claim-header">
                 <span className="claim-text">{claim.claim}</span>
                 <span className={`claim-label claim-${claim.label.toLowerCase()}`}>
-                  {claim.label === 'ENTAILS' && '✅ Подтверждено'}
-                  {claim.label === 'CONTRADICTS' && '❌ Опровергнуто'}
-                  {claim.label === 'NEUTRAL' && '➖ Нейтрально'}
+                  {claim.label === 'ENTAILS' && 'Подтверждено'}
+                  {claim.label === 'CONTRADICTS' && 'Опровергнуто'}
+                  {claim.label === 'NEUTRAL' && 'Нейтрально'}
                 </span>
               </div>
               {claim.evidence && claim.evidence.length > 0 && (
